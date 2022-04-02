@@ -1,0 +1,89 @@
+
+---
+
+- hosts: remote
+  become: true
+  vars:
+    mysql_root_password: root
+
+  tasks:
+    - name: Installing LAMP packages
+      yum:
+         name: "{{item}}"
+         state: present
+         update_cache: true
+      with_items:
+        - httpd
+        - php
+        - php-mysql
+        - php-fpm
+        - php-common
+        - php-mbstring
+
+#mysql-server repo is not available by default so we will have to set the repo.
+
+    - name: Setting repo to install mysql
+      yum:
+        name: http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm
+        state: present
+
+    - name: Installing mysql
+      yum:
+        name: mysql-server
+        state: installed
+
+
+#    -  name: Copying files to /var/www/html
+#       copy:
+#         src: ./index.php
+#         dest: /var/www/html/index.php
+
+# In case if you are interested in installing Wordpress skip the above index.php and follow installing WP
+
+    -  name: Updating root password
+       mysql_user:
+         name: root
+         host: localhost
+         password: "{{ mysql_root_password }}"
+         login_user: root
+         priv: '*.*:ALL,GRANT'
+
+
+    -  name: Create database for wordpress
+       mysql_db:
+         name: wp_db
+         state: present
+         login_user: root
+         login_password: "{{ mysql_root_password }}"
+
+    -  name: Create user for wordpress
+       mysql_user:
+         name: admin
+         password: admin
+         priv: 'wp_db.*:ALL'
+         state: present
+         login_user: root
+         login_password: "{{ mysql_root_password }}"
+
+  #Download wordpress
+
+    -  name: Download wordpress and unzip it
+       unarchive:
+         src: https://en-gb.wordpress.org/latest-en_GB.tar.gz
+         dest: /tmp
+         remote_src: yes
+
+    -  name: copying wordpress content to /var/www/html
+       shell: cp -Rp /tmp/wordpress/* /var/www/html/
+
+    -  name: changing permission to wordpress content dir
+       shell: find /var/www/html/ -type d -exec chmod 750 {} \;
+
+    -  name: changing permission to wordpress content files
+       shell: find /var/www/html/ -type f -exec chmod 640 {} \;
+
+    -  name: Changing ownership to apache
+       shell: chown -R apache.apache /var/www/html
+
+
+
